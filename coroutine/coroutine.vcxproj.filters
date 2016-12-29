@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="coroutine.cpp" />
+    <ClCompile Include="coroutine_impl.cpp" />
+    <ClCompile Include="coroutine_mgr.cpp" />
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="coroutine.h" />
+    <ClInclude Include="coroutine_impl.h" />
+    <ClInclude Include="coroutine_mgr.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="context_win.S" />
+  </ItemGroup>
+</Project>
