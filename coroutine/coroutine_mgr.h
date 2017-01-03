@@ -28,6 +28,8 @@ namespace coroutine
 
 		context*		getMainContext() const;
 
+		uint32_t		getPageSize() const;
+
 		static char*	allocStack(uint32_t& nStackSize, uint32_t& nValgrindID);
 		static void		freeStack(char* pStack, uint32_t nStackSize, uint32_t nValgrindID);
 
@@ -45,5 +47,6 @@ namespace coroutine
 #ifndef _WIN32
 		int32_t									m_nValgrindID;
 #endif
+		uint32_t								m_nPageSize;
 	};
 }

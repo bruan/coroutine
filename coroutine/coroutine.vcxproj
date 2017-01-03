@@ -151,6 +151,9 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(fileName).obj</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ml64 /c %(fileName).S</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(fileName).obj</Outputs>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ml64 /c %(fileName).S</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(fileName).obj</Outputs>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>

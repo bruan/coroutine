@@ -2,12 +2,13 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <unistd.h>
 #include <sys/mman.h>
 #include "valgrind/valgrind.h"
 #endif
 
 #define _MAX_CO_RECYCLE_COUNT	100
-#define _PAGE_SIZE				4096        ///< 内存页默认大小
+
 namespace coroutine
 {
 	CCoroutineMgr::CCoroutineMgr()
@@ -16,6 +17,7 @@ namespace coroutine
 		, m_pMainStack(nullptr)
 		, m_nMainStackSize(0)
 		, m_nNextCoroutineID(1)
+		, m_nPageSize(4096)
 #ifndef _WIN32
 		, m_nValgrindID(0)
 #endif
@@ -36,6 +38,13 @@ namespace coroutine
 
 	bool CCoroutineMgr::init(uint32_t nStackSize)
 	{
+#ifdef _WIN32
+		SYSTEM_INFO systemInfo;
+		GetSystemInfo(&systemInfo);
+		this->m_nPageSize = systemInfo.dwPageSize;
+#else
+		this->m_nPageSize = getpagesize();
+#endif
 		uint32_t nValgrindID = 0;
 		this->m_pMainStack = CCoroutineMgr::allocStack(nStackSize, nValgrindID);
 		if (nullptr == this->m_pMainStack)
@@ -51,7 +60,11 @@ namespace coroutine
 
 	char* CCoroutineMgr::getMainStack() const
 	{
+#ifdef _WIN32
+		return this->m_pMainStack + this->m_nMainStackSize - this->getPageSize();
+#else
 		return this->m_pMainStack + this->m_nMainStackSize;
+#endif
 	}
 
 	CCoroutineImpl* CCoroutineMgr::getCurrentCoroutine() const
@@ -133,6 +146,11 @@ namespace coroutine
 		}
 	}
 
+	uint32_t CCoroutineMgr::getPageSize() const
+	{
+		return this->m_nPageSize;
+	}
+
 	CCoroutineMgr* CCoroutineMgr::Inst()
 	{
 		static CCoroutineMgr s_Inst;
@@ -142,47 +160,51 @@ namespace coroutine
 
 	char* CCoroutineMgr::allocStack(uint32_t& nStackSize, uint32_t& nValgrindID)
 	{
-		nStackSize = (nStackSize + _PAGE_SIZE - 1) / _PAGE_SIZE * _PAGE_SIZE;
+		uint32_t nPageSize = CCoroutineMgr::Inst()->getPageSize();
+		nStackSize = (nStackSize + nPageSize - 1) / nPageSize * nPageSize;
 
 #ifdef _WIN32
-		char* pStack = reinterpret_cast<char*>(::VirtualAlloc(nullptr, nStackSize + 2 * _PAGE_SIZE, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+		char* pStack = reinterpret_cast<char*>(::VirtualAlloc(nullptr, nStackSize + 2 * nPageSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 		if (nullptr == pStack)
 			return nullptr;
 
 		DWORD dwProtect = 0;
-		if (!::VirtualProtect(pStack, _PAGE_SIZE, PAGE_NOACCESS, &dwProtect))
+		if (!::VirtualProtect(pStack, nPageSize, PAGE_NOACCESS, &dwProtect))
 		{
-			::VirtualFree(pStack, nStackSize + 2 * _PAGE_SIZE, MEM_RELEASE);
+			::VirtualFree(pStack, nStackSize + 2 * nPageSize, MEM_RELEASE);
 			return nullptr;
 		}
 
-		if (!::VirtualProtect(pStack + _PAGE_SIZE + nStackSize, _PAGE_SIZE, PAGE_NOACCESS, &dwProtect))
+		if (!::VirtualProtect(pStack + nPageSize + nStackSize, nPageSize, PAGE_NOACCESS, &dwProtect))
 		{
-			::VirtualFree(pStack, nStackSize + 2 * _PAGE_SIZE, MEM_RELEASE);
+			::VirtualFree(pStack, nStackSize + 2 * nPageSize, MEM_RELEASE);
 			return nullptr;
 		}
-		return pStack + _PAGE_SIZE;
+		return pStack + nPageSize;
 #else
-		char* pStack = reinterpret_cast<char*>(mmap(NULL, nStackSize + 2 * _PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0));
+		char* pStack = reinterpret_cast<char*>(mmap(NULL, nStackSize + 2 * nPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0));
 		if (pStack == (void*)MAP_FAILED)
 			return nullptr;
 
-		nValgrindID = VALGRIND_STACK_REGISTER(pStack + _PAGE_SIZE, pStack + _PAGE_SIZE + nStackSize);
+		nValgrindID = VALGRIND_STACK_REGISTER(pStack + nPageSize, pStack + nPageSize + nStackSize);
 
-		mprotect(pStack, _PAGE_SIZE, PROT_NONE);
-		mprotect(pStack + _PAGE_SIZE + nStackSize, _PAGE_SIZE, PROT_NONE);
+		mprotect(pStack, nPageSize, PROT_NONE);
+		mprotect(pStack + nPageSize + nStackSize, nPageSize, PROT_NONE);
 
-		return pStack + _PAGE_SIZE;
+		return pStack + nPageSize;
 #endif
 	}
 
 	void CCoroutineMgr::freeStack(char* pStack, uint32_t nStackSize, uint32_t nValgrindID)
 	{
+		uint32_t nPageSize = CCoroutineMgr::Inst()->getPageSize();
+
 #ifdef _WIN32
-		::VirtualFree(pStack - _PAGE_SIZE, nStackSize + 2 * _PAGE_SIZE, MEM_RELEASE);
+		::VirtualFree(pStack - nPageSize, nStackSize + 2 * nPageSize, MEM_RELEASE);
 #else
-		munmap(pStack - _PAGE_SIZE, nStackSize + 2 * _PAGE_SIZE);
+		munmap(pStack - nPageSize, nStackSize + 2 * nPageSize);
 		VALGRIND_STACK_DEREGISTER(nValgrindID);
 #endif
 	}
+
 }

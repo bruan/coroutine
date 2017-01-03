@@ -3,6 +3,7 @@
 	.globl save_context
 	.type save_context, @function
 save_context:
+	movq %rsi,56(%rdi)
 	pop  %rsi			
 	xorl %eax,%eax	
 	movq %rbx,(%rdi)
@@ -13,7 +14,11 @@ save_context:
 	movq %r13,32(%rdi)
 	movq %r14,40(%rdi)
 	movq %r15,48(%rdi)
-	movq %rsi,56(%rdi)	
+	push %r11
+	movq 56(%rdi),%r11
+	movq %rsi,56(%rdi)
+	movq %r11,%rsi
+	pop  %r11
 	ret
 
 .text

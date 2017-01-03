@@ -21,14 +21,14 @@ namespace coroutine
 			CCoroutineMgr::Inst()->addRecycleCoroutine(pCoroutineImpl);
 
 			CCoroutineMgr::Inst()->setCurrentCoroutine(nullptr);
-			
+
 			pCoroutineImpl->m_eState = eCS_DEAD;
 			pCoroutineImpl->m_nStackSize = 0;
 			if (save_context(pCoroutineImpl->m_ctx.regs) == 0)
 				restore_context(CCoroutineMgr::Inst()->getMainContext()->regs, 1);
 		}
 	}
-
+	
 	void CCoroutineImpl::saveStack()
 	{
 		char* pStack = CCoroutineMgr::Inst()->getMainStack();
@@ -84,11 +84,11 @@ namespace coroutine
 			CCoroutineImpl::onCallback();
 
 			// 不可能执行到这里的
-			assert(0);
+			//assert(0);
 		}
 		if (nStackSize != 0)
 			this->m_bOwnerStack = true;
-
+		
 		if (nStackSize == 0)
 		{
 			this->m_bOwnerStack = false;
@@ -106,10 +106,11 @@ namespace coroutine
 				return false;
 			this->m_pStack = pStack + nStackSize;
 			this->m_nStackSize = nStackSize;
-			this->m_ctx.rsp = (uintptr_t)this->m_pStack;
 #ifdef _WIN32
+			this->m_ctx.rsp = (uintptr_t)this->m_pStack - CCoroutineMgr::Inst()->getPageSize();
 			this->m_ctx.gs = this->m_ctx.rsp;
 #else
+			this->m_ctx.rsp = (uintptr_t)this->m_pStack;
 			this->m_nValgrindID = nValgrindID;
 #endif
 		}

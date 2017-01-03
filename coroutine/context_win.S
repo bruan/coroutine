@@ -1,13 +1,14 @@
 .CODE
 
 save_context PROC
+	mov  [rcx+64], rsi
 	pop  rsi		
 	xor  eax, eax
 	mov  [rcx]   , rbx
 	mov  [rcx+8] , rsp
 	push rsi
 	mov  [rcx+16], rbp
-	push  r11
+	push r11
 	mov  r11, qword ptr gs:[10h]
 	mov  [rcx+24], r11
 	pop  r11
@@ -15,7 +16,11 @@ save_context PROC
 	mov  [rcx+40], r13
 	mov  [rcx+48], r14
 	mov  [rcx+56], r15
+	push r11
+	mov  r11, [rcx+64]
 	mov  [rcx+64], rsi
+	mov  rsi, r11
+	pop  r11
 	ret
 save_context ENDP
 
