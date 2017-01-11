@@ -17,12 +17,10 @@ namespace coroutine
 		, m_pMainStack(nullptr)
 		, m_nMainStackSize(0)
 		, m_nNextCoroutineID(1)
-		, m_nPageSize(4096)
 #ifndef _WIN32
 		, m_nValgrindID(0)
 #endif
 	{
-
 	}
 
 	CCoroutineMgr::~CCoroutineMgr()
@@ -38,13 +36,6 @@ namespace coroutine
 
 	bool CCoroutineMgr::init(uint32_t nStackSize)
 	{
-#ifdef _WIN32
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo(&systemInfo);
-		this->m_nPageSize = systemInfo.dwPageSize;
-#else
-		this->m_nPageSize = getpagesize();
-#endif
 		uint32_t nValgrindID = 0;
 		this->m_pMainStack = CCoroutineMgr::allocStack(nStackSize, nValgrindID);
 		if (nullptr == this->m_pMainStack)
@@ -61,7 +52,7 @@ namespace coroutine
 	char* CCoroutineMgr::getMainStack() const
 	{
 #ifdef _WIN32
-		return this->m_pMainStack + this->m_nMainStackSize - this->getPageSize();
+		return this->m_pMainStack + this->m_nMainStackSize - CCoroutineMgr::getPageSize();
 #else
 		return this->m_pMainStack + this->m_nMainStackSize;
 #endif
@@ -146,21 +137,32 @@ namespace coroutine
 		}
 	}
 
-	uint32_t CCoroutineMgr::getPageSize() const
+	uint32_t CCoroutineMgr::getPageSize()
 	{
-		return this->m_nPageSize;
-	}
+		struct SPageSize 
+		{
+			SPageSize()
+			{
+#ifdef _WIN32
+				SYSTEM_INFO systemInfo;
+				GetSystemInfo(&systemInfo);
+				nPageSize = systemInfo.dwPageSize;
+#else
+				nPageSize = getpagesize();
+#endif
+			}
 
-	CCoroutineMgr* CCoroutineMgr::Inst()
-	{
-		static CCoroutineMgr s_Inst;
+			uint32_t	nPageSize;
+		};
 
-		return &s_Inst;
+		static SPageSize sPageSize;
+
+		return sPageSize.nPageSize;
 	}
 
 	char* CCoroutineMgr::allocStack(uint32_t& nStackSize, uint32_t& nValgrindID)
 	{
-		uint32_t nPageSize = CCoroutineMgr::Inst()->getPageSize();
+		uint32_t nPageSize = CCoroutineMgr::getPageSize();
 		nStackSize = (nStackSize + nPageSize - 1) / nPageSize * nPageSize;
 
 #ifdef _WIN32
@@ -197,7 +199,7 @@ namespace coroutine
 
 	void CCoroutineMgr::freeStack(char* pStack, uint32_t nStackSize, uint32_t nValgrindID)
 	{
-		uint32_t nPageSize = CCoroutineMgr::Inst()->getPageSize();
+		uint32_t nPageSize = CCoroutineMgr::getPageSize();
 
 #ifdef _WIN32
 		::VirtualFree(pStack - nPageSize, nStackSize + 2 * nPageSize, MEM_RELEASE);
@@ -207,4 +209,17 @@ namespace coroutine
 #endif
 	}
 
+#if defined(_MSC_VER) && _MSC_VER < 1900
+# define thread_local	__declspec(thread)
+#endif
+
+	CCoroutineMgr* getCoroutineMgr()
+	{
+		static thread_local CCoroutineMgr* s_Inst = nullptr;
+
+		if (nullptr == s_Inst)
+			s_Inst = new thread_local CCoroutineMgr();
+
+		return s_Inst;
+	}
 }

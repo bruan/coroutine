@@ -6,7 +6,7 @@ namespace coroutine
 {
 	void resume(uint64_t nID, uint64_t nContext)
 	{
-		CCoroutineImpl* pCoroutineImpl = CCoroutineMgr::Inst()->getCoroutine(nID);
+		CCoroutineImpl* pCoroutineImpl = getCoroutineMgr()->getCoroutine(nID);
 		if (nullptr == pCoroutineImpl)
 			return;
 
@@ -15,12 +15,12 @@ namespace coroutine
 
 	uint64_t yield()
 	{
-		return CCoroutineMgr::Inst()->getCurrentCoroutine()->yield();
+		return getCoroutineMgr()->getCurrentCoroutine()->yield();
 	}
 
 	uint32_t getState(uint64_t nID)
 	{
-		CCoroutineImpl* pCoroutineImpl = CCoroutineMgr::Inst()->getCoroutine(nID);
+		CCoroutineImpl* pCoroutineImpl = getCoroutineMgr()->getCoroutine(nID);
 		if (nullptr == pCoroutineImpl)
 			return eCS_DEAD;
 
@@ -29,12 +29,16 @@ namespace coroutine
 
 	uint64_t getCurrentID()
 	{
-		return CCoroutineMgr::Inst()->getCurrentCoroutine()->getCoroutineID();
+		CCoroutineImpl* pCoroutineImpl = getCoroutineMgr()->getCurrentCoroutine();
+		if (nullptr == pCoroutineImpl)
+			return 0;
+
+		return pCoroutineImpl->getCoroutineID();
 	}
 
 	uint64_t create(uint32_t nStackSize, const std::function<void(uint64_t)>& fn)
 	{
-		CCoroutineImpl* pCoroutineImpl = CCoroutineMgr::Inst()->createCoroutine(nStackSize, fn);
+		CCoroutineImpl* pCoroutineImpl = getCoroutineMgr()->createCoroutine(nStackSize, fn);
 		if (nullptr == pCoroutineImpl)
 			return 0;
 
@@ -43,21 +47,22 @@ namespace coroutine
 
 	void close(uint64_t nID)
 	{
-		CCoroutineImpl* pCoroutineImpl = CCoroutineMgr::Inst()->getCurrentCoroutine();
+		CCoroutineMgr* pCoroutineMgr = getCoroutineMgr();
+		CCoroutineImpl* pCoroutineImpl = pCoroutineMgr->getCurrentCoroutine();
 		if (nullptr == pCoroutineImpl)
 			return;
 
 		if (pCoroutineImpl->getCoroutineID() == nID)
 			return;
 
-		pCoroutineImpl = CCoroutineMgr::Inst()->getCoroutine(nID);
+		pCoroutineImpl = pCoroutineMgr->getCoroutine(nID);
 		if (nullptr == pCoroutineImpl)
 			return;
 	}
 
 	void sendMessage(uint64_t nID, void* pData)
 	{
-		CCoroutineImpl* pCoroutineImpl = CCoroutineMgr::Inst()->getCoroutine(nID);
+		CCoroutineImpl* pCoroutineImpl = getCoroutineMgr()->getCoroutine(nID);
 		if (nullptr == pCoroutineImpl)
 			return;
 
@@ -66,7 +71,7 @@ namespace coroutine
 
 	void* recvMessage(uint64_t nID)
 	{
-		CCoroutineImpl* pCoroutineImpl = CCoroutineMgr::Inst()->getCoroutine(nID);
+		CCoroutineImpl* pCoroutineImpl = getCoroutineMgr()->getCoroutine(nID);
 		if (nullptr == pCoroutineImpl)
 			return nullptr;
 
@@ -75,7 +80,7 @@ namespace coroutine
 
 	void init(uint32_t nStackSize)
 	{
-		CCoroutineMgr::Inst()->init(nStackSize);
+		getCoroutineMgr()->init(nStackSize);
 	}
 
 }

@@ -25,3 +25,4 @@ aux_source_directory(. LIST_SRCS)
 enable_language(C ASM)
 
 add_executable(main context_linux.S ${LIST_SRCS})
+target_link_libraries(main pthread)

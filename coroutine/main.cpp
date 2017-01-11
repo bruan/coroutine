@@ -34,8 +34,12 @@ void f()
 
 int main()
 {
-	std::thread t(f);
-	t.join();
+	std::thread t0(f);
+	std::thread t1(f);
+	std::thread t2(f);
+	t0.join();
+	t1.join();
+	t2.join();
 
 #ifdef _WIN32
 	system("pause");

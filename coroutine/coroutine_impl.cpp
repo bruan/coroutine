@@ -16,22 +16,23 @@ namespace coroutine
 	{
 		while (true)
 		{
-			CCoroutineImpl* pCoroutineImpl = CCoroutineMgr::Inst()->getCurrentCoroutine();
+			CCoroutineMgr* pCoroutineMgr = getCoroutineMgr();
+			CCoroutineImpl* pCoroutineImpl = pCoroutineMgr->getCurrentCoroutine();
 			pCoroutineImpl->m_callback(pCoroutineImpl->m_nContext);
-			CCoroutineMgr::Inst()->addRecycleCoroutine(pCoroutineImpl);
+			pCoroutineMgr->addRecycleCoroutine(pCoroutineImpl);
 
-			CCoroutineMgr::Inst()->setCurrentCoroutine(nullptr);
+			pCoroutineMgr->setCurrentCoroutine(nullptr);
 
 			pCoroutineImpl->m_eState = eCS_DEAD;
 			pCoroutineImpl->m_nStackSize = 0;
 			if (save_context(pCoroutineImpl->m_ctx.regs) == 0)
-				restore_context(CCoroutineMgr::Inst()->getMainContext()->regs, 1);
+				restore_context(pCoroutineMgr->getMainContext()->regs, 1);
 		}
 	}
 	
 	void CCoroutineImpl::saveStack()
 	{
-		char* pStack = CCoroutineMgr::Inst()->getMainStack();
+		char* pStack = getCoroutineMgr()->getMainStack();
 		char nDummy = 0;
 
 		if (this->m_nStackCap < (uintptr_t)(pStack - &nDummy))
@@ -89,10 +90,11 @@ namespace coroutine
 		if (nStackSize != 0)
 			this->m_bOwnerStack = true;
 		
+		CCoroutineMgr* pCoroutineMgr = getCoroutineMgr();
 		if (nStackSize == 0)
 		{
 			this->m_bOwnerStack = false;
-			this->m_ctx.rsp = (uintptr_t)CCoroutineMgr::Inst()->getMainStack();
+			this->m_ctx.rsp = (uintptr_t)pCoroutineMgr->getMainStack();
 #ifdef _WIN32
 			this->m_ctx.gs = this->m_ctx.rsp;
 #endif
@@ -107,7 +109,7 @@ namespace coroutine
 			this->m_pStack = pStack + nStackSize;
 			this->m_nStackSize = nStackSize;
 #ifdef _WIN32
-			this->m_ctx.rsp = (uintptr_t)this->m_pStack - CCoroutineMgr::Inst()->getPageSize();
+			this->m_ctx.rsp = (uintptr_t)this->m_pStack - pCoroutineMgr->getPageSize();
 			this->m_ctx.gs = this->m_ctx.rsp;
 #else
 			this->m_ctx.rsp = (uintptr_t)this->m_pStack;
@@ -128,7 +130,8 @@ namespace coroutine
 		if (this->m_eState != eCS_RUNNING)
 			return 0;
 
-		CCoroutineMgr::Inst()->setCurrentCoroutine(nullptr);
+		CCoroutineMgr* pCoroutineMgr = getCoroutineMgr();
+		pCoroutineMgr->setCurrentCoroutine(nullptr);
 
 		this->m_eState = eCS_SUSPEND;
 
@@ -136,7 +139,7 @@ namespace coroutine
 			this->saveStack();
 		
 		if (save_context(this->m_ctx.regs) == 0)
-			restore_context(CCoroutineMgr::Inst()->getMainContext()->regs, 1);
+			restore_context(pCoroutineMgr->getMainContext()->regs, 1);
 		
 		return this->m_nContext;
 	}
@@ -147,14 +150,15 @@ namespace coroutine
 			return;
 
 		this->m_eState = eCS_RUNNING;
-		
-		CCoroutineMgr::Inst()->setCurrentCoroutine(this);
+
+		CCoroutineMgr* pCoroutineMgr = getCoroutineMgr();
+		pCoroutineMgr->setCurrentCoroutine(this);
 		this->m_nContext = nContext;
 
 		if (!this->m_bOwnerStack)
-			memcpy(CCoroutineMgr::Inst()->getMainStack() - this->m_nStackSize, this->m_pStack, this->m_nStackSize);
+			memcpy(pCoroutineMgr->getMainStack() - this->m_nStackSize, this->m_pStack, this->m_nStackSize);
 
-		if (save_context(CCoroutineMgr::Inst()->getMainContext()->regs) == 0)	
+		if (save_context(pCoroutineMgr->getMainContext()->regs) == 0)
 			restore_context(this->m_ctx.regs, 1);
 	}
 
