@@ -177,20 +177,32 @@ namespace coroutine
 		return this->m_nID;
 	}
 
-	void CCoroutineImpl::sendMessage(void* pData)
+	void CCoroutineImpl::setLocalData(const char* szName, void* pData)
 	{
-		this->m_listMessage.push_back(pData);
+		if (nullptr == szName)
+			return;
+
+		this->m_mapLocalData[szName] = pData;
 	}
 
-	void* CCoroutineImpl::recvMessage()
+	void* CCoroutineImpl::getLocalData(const char* szName) const
 	{
-		if (this->m_listMessage.empty())
+		if (szName == nullptr)
 			return nullptr;
 
-		void* pData = this->m_listMessage.front();
-		this->m_listMessage.pop_front();
+		auto iter = this->m_mapLocalData.find(szName);
+		if (iter == this->m_mapLocalData.end())
+			return nullptr;
 
-		return pData;
+		return iter->second;
+	}
+
+	void CCoroutineImpl::delLocalData(const char* szName)
+	{
+		if (szName == nullptr)
+			return;
+
+		this->m_mapLocalData.erase(szName);
 	}
 
 	void CCoroutineImpl::setCallback(const std::function<void(uint64_t)>& callback)

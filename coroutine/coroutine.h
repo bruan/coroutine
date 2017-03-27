@@ -37,13 +37,17 @@ namespace coroutine
 	*/
 	uint32_t	getState(uint64_t nID);
 	/**
-	@brief: 向指定协程发送消息
+	@brief: 设置协程数据
 	*/
-	void		sendMessage(uint64_t nID, void* pData);
+	void		setLocalData(uint64_t nID, const char* szName, void* pData);
 	/**
-	@brief: 取指定协程接受消息
+	@brief: 获取协程数据
 	*/
-	void*		recvMessage(uint64_t nID);
+	void*		getLocalData(uint64_t nID, const char* szName);
+	/**
+	@brief: 删除协程数据
+	*/
+	void		delLocalData(uint64_t nID, const char* szName);
 	/**
 	@brief: 获取当前执行协程的ID
 	*/

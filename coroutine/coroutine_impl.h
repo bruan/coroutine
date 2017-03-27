@@ -2,7 +2,7 @@
 
 #include "coroutine.h"
 
-#include <list>
+#include <map>
 
 namespace coroutine
 {
@@ -42,8 +42,9 @@ namespace coroutine
 		uint32_t		getState() const;
 		void			setState(uint32_t nState);
 		uint64_t		getCoroutineID() const;
-		void			sendMessage(void* pData);
-		void*			recvMessage();
+		void			setLocalData(const char* szName, void* pData);
+		void*			getLocalData(const char* szName) const;
+		void			delLocalData(const char* szName);
 
 		void			setCallback(const std::function<void(uint64_t)>& callback);
 
@@ -64,6 +65,6 @@ namespace coroutine
 		uintptr_t						m_nStackSize;
 		uintptr_t						m_nStackCap;
 		ECoroutineState					m_eState;
-		std::list<void*>				m_listMessage;
+		std::map<std::string, void*>	m_mapLocalData;
 	};
 }

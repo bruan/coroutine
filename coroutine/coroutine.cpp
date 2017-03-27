@@ -60,22 +60,31 @@ namespace coroutine
 			return;
 	}
 
-	void sendMessage(uint64_t nID, void* pData)
+	void setLocalData(uint64_t nID, const char* szName, void* pData)
 	{
 		CCoroutineImpl* pCoroutineImpl = getCoroutineMgr()->getCoroutine(nID);
 		if (nullptr == pCoroutineImpl)
 			return;
 
-		pCoroutineImpl->sendMessage(pData);
+		pCoroutineImpl->setLocalData(szName, pData);
 	}
 
-	void* recvMessage(uint64_t nID)
+	void* getLocalData(uint64_t nID, const char* szName)
 	{
 		CCoroutineImpl* pCoroutineImpl = getCoroutineMgr()->getCoroutine(nID);
 		if (nullptr == pCoroutineImpl)
 			return nullptr;
 
-		return pCoroutineImpl->recvMessage();
+		return pCoroutineImpl->getLocalData(szName);
+	}
+
+	void delLocalData(uint64_t nID, const char* szName)
+	{
+		CCoroutineImpl* pCoroutineImpl = getCoroutineMgr()->getCoroutine(nID);
+		if (nullptr == pCoroutineImpl)
+			return;
+
+		pCoroutineImpl->delLocalData(szName);
 	}
 
 	void init(uint32_t nStackSize)
