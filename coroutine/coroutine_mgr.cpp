@@ -4,7 +4,10 @@
 #else
 #include <unistd.h>
 #include <sys/mman.h>
+//#define __USE_VALGRIND__
+#ifdef __USE_VALGRIND__
 #include "valgrind/valgrind.h"
+#endif
 #endif
 
 #define _MAX_CO_RECYCLE_COUNT	100
@@ -13,11 +16,12 @@ namespace coroutine
 {
 	CCoroutineMgr::CCoroutineMgr()
 		: m_pCurrentCoroutine(nullptr)
-		, m_pMainContext(new context())
+		, m_pMainContext(nullptr)
+		, m_nNextCoroutineID(1)
+		, m_nTotalStackSize(0)
+#ifndef _WIN32
 		, m_pMainStack(nullptr)
 		, m_nMainStackSize(0)
-		, m_nNextCoroutineID(1)
-#ifndef _WIN32
 		, m_nValgrindID(0)
 #endif
 	{
@@ -25,23 +29,29 @@ namespace coroutine
 
 	CCoroutineMgr::~CCoroutineMgr()
 	{
+#ifdef _WIN32
+		ConvertFiberToThread();
+		this->m_pMainContext = nullptr;
+#else
 		delete this->m_pMainContext;
-
-		uint32_t nValgrindID = 0;
-#ifndef _WIN32
-		nValgrindID = this->m_nValgrindID;
-#endif
+		uint32_t nValgrindID = this->m_nValgrindID;
 		CCoroutineMgr::freeStack(this->m_pMainStack, this->m_nMainStackSize, nValgrindID);
+#endif
 	}
 
 	bool CCoroutineMgr::init(uint32_t nStackSize)
 	{
+#ifdef _WIN32
+		this->m_pMainContext = ConvertThreadToFiberEx(nullptr, FIBER_FLAG_FLOAT_SWITCH);
+		if (this->m_pMainContext == nullptr)
+			return false;
+#else
+		this->m_pMainContext = new context();
 		uint32_t nValgrindID = 0;
 		this->m_pMainStack = CCoroutineMgr::allocStack(nStackSize, nValgrindID);
 		if (nullptr == this->m_pMainStack)
 			return false;
 		this->m_nMainStackSize = nStackSize;
-#ifndef _WIN32
 		this->m_nValgrindID = nValgrindID;
 #endif
 		this->m_pCurrentCoroutine = nullptr;
@@ -49,14 +59,12 @@ namespace coroutine
 		return true;
 	}
 
+#ifndef _WIN32
 	char* CCoroutineMgr::getMainStack() const
 	{
-#ifdef _WIN32
-		return this->m_pMainStack + this->m_nMainStackSize - CCoroutineMgr::getPageSize();
-#else
 		return this->m_pMainStack + this->m_nMainStackSize;
-#endif
 	}
+#endif
 
 	CCoroutineImpl* CCoroutineMgr::getCurrentCoroutine() const
 	{
@@ -71,7 +79,7 @@ namespace coroutine
 		this->m_pCurrentCoroutine = pCoroutineImpl;
 	}
 
-	context* CCoroutineMgr::getMainContext() const
+	void* CCoroutineMgr::getMainContext() const
 	{
 		return this->m_pMainContext;
 	}
@@ -81,30 +89,39 @@ namespace coroutine
 		if (callback == nullptr)
 			return nullptr;
 
-		CCoroutineImpl* pCoroutine = nullptr;
-		if (!this->m_listRecycleCoroutine.empty())
-		{
-			this->recycle();
+#ifdef _WIN32
+		if (nStackSize == 0)
+			nStackSize = 64 * 1024;
+#endif
 
-			pCoroutine = this->m_listRecycleCoroutine.front();
-			this->m_listRecycleCoroutine.pop_front();
+		uint32_t nPageSize = CCoroutineMgr::getPageSize();
+		nStackSize = (nStackSize + nPageSize - 1) / nPageSize * nPageSize;
 
-			pCoroutine->setCallback(callback);
-			pCoroutine->setState(eCS_SUSPEND);
-		}
-		else
+		for (auto iter = this->m_listRecycleCoroutine.begin(); iter != this->m_listRecycleCoroutine.end(); ++iter)
 		{
-			pCoroutine = new CCoroutineImpl();
-			if (!pCoroutine->init(this->m_nNextCoroutineID++, nStackSize, callback))
+			CCoroutineImpl* pCoroutineImpl = *iter;
+			if ((pCoroutineImpl->getStackSize() == 0 && nStackSize == 0) || std::abs((int32_t)pCoroutineImpl->getStackSize() - (int32_t)nStackSize) <= (int32_t)(10 * nPageSize))
 			{
-				delete pCoroutine;
-				return nullptr;
+				pCoroutineImpl->setCallback(callback);
+				pCoroutineImpl->setState(eCS_SUSPEND);
+				this->m_listRecycleCoroutine.erase(iter);
+				this->recycle();
+				this->m_mapCoroutine[pCoroutineImpl->getCoroutineID()] = pCoroutineImpl;
+				this->m_nTotalStackSize += nStackSize;
+				return pCoroutineImpl;
 			}
 		}
 
-		this->m_mapCoroutine[pCoroutine->getCoroutineID()] = pCoroutine;
+		CCoroutineImpl* pCoroutineImpl = new CCoroutineImpl();
+		if (!pCoroutineImpl->init(this->m_nNextCoroutineID++, nStackSize, callback))
+		{
+			delete pCoroutineImpl;
+			return nullptr;
+		}
 
-		return pCoroutine;
+		this->m_mapCoroutine[pCoroutineImpl->getCoroutineID()] = pCoroutineImpl;
+		this->m_nTotalStackSize += nStackSize;
+		return pCoroutineImpl;
 	}
 
 	CCoroutineImpl* CCoroutineMgr::getCoroutine(uint64_t nID) const
@@ -116,12 +133,23 @@ namespace coroutine
 		return iter->second;
 	}
 
+	uint32_t CCoroutineMgr::getCoroutineCount() const
+	{
+		return (uint32_t)this->m_mapCoroutine.size();
+	}
+
+	uint64_t CCoroutineMgr::getTotalStackSize() const
+	{
+		return (uint64_t)this->m_nTotalStackSize;
+	}
+
 	void CCoroutineMgr::addRecycleCoroutine(CCoroutineImpl* pCoroutineImpl)
 	{
 		if (pCoroutineImpl == nullptr)
 			return;
 
 		this->m_mapCoroutine.erase(pCoroutineImpl->getCoroutineID());
+		this->m_nTotalStackSize -= pCoroutineImpl->getStackSize();
 
 		this->m_listRecycleCoroutine.push_back(pCoroutineImpl);
 	}
@@ -160,54 +188,37 @@ namespace coroutine
 		return sPageSize.nPageSize;
 	}
 
+#ifndef _WIN32
 	char* CCoroutineMgr::allocStack(uint32_t& nStackSize, uint32_t& nValgrindID)
 	{
 		uint32_t nPageSize = CCoroutineMgr::getPageSize();
 		nStackSize = (nStackSize + nPageSize - 1) / nPageSize * nPageSize;
 
-#ifdef _WIN32
-		char* pStack = reinterpret_cast<char*>(::VirtualAlloc(nullptr, nStackSize + 2 * nPageSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-		if (nullptr == pStack)
-			return nullptr;
-
-		DWORD dwProtect = 0;
-		if (!::VirtualProtect(pStack, nPageSize, PAGE_NOACCESS, &dwProtect))
-		{
-			::VirtualFree(pStack, nStackSize + 2 * nPageSize, MEM_RELEASE);
-			return nullptr;
-		}
-
-		if (!::VirtualProtect(pStack + nPageSize + nStackSize, nPageSize, PAGE_NOACCESS, &dwProtect))
-		{
-			::VirtualFree(pStack, nStackSize + 2 * nPageSize, MEM_RELEASE);
-			return nullptr;
-		}
-		return pStack + nPageSize;
-#else
 		char* pStack = reinterpret_cast<char*>(mmap(NULL, nStackSize + 2 * nPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0));
 		if (pStack == (void*)MAP_FAILED)
 			return nullptr;
 
+#ifdef __USE_VALGRIND__
 		nValgrindID = VALGRIND_STACK_REGISTER(pStack + nPageSize, pStack + nPageSize + nStackSize);
+#endif
 
 		mprotect(pStack, nPageSize, PROT_NONE);
 		mprotect(pStack + nPageSize + nStackSize, nPageSize, PROT_NONE);
 
 		return pStack + nPageSize;
-#endif
 	}
 
 	void CCoroutineMgr::freeStack(char* pStack, uint32_t nStackSize, uint32_t nValgrindID)
 	{
 		uint32_t nPageSize = CCoroutineMgr::getPageSize();
 
-#ifdef _WIN32
-		::VirtualFree(pStack - nPageSize, nStackSize + 2 * nPageSize, MEM_RELEASE);
-#else
 		munmap(pStack - nPageSize, nStackSize + 2 * nPageSize);
+
+#ifdef __USE_VALGRIND__
 		VALGRIND_STACK_DEREGISTER(nValgrindID);
 #endif
 	}
+#endif
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 # define thread_local	__declspec(thread)
@@ -218,7 +229,7 @@ namespace coroutine
 		static thread_local CCoroutineMgr* s_Inst = nullptr;
 
 		if (nullptr == s_Inst)
-			s_Inst = new thread_local CCoroutineMgr();
+			s_Inst = new CCoroutineMgr();
 
 		return s_Inst;
 	}

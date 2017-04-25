@@ -30,16 +30,21 @@ void f()
 	coroutine::resume(nCoroutineID2, 0);
 	printf("DDDDD222\n");
 	coroutine::resume(nCoroutineID1, 0);
+	uint64_t nCoroutineID3 = coroutine::create(1024*1024, std::bind(&fun1, std::placeholders::_1));
+	printf("CCCCCC333\n");
+	coroutine::resume(nCoroutineID3, 0);
+	coroutine::resume(nCoroutineID3, 0);
+	printf("EEEEEE333\n");
 }
 
 int main()
 {
 	std::thread t0(f);
-	std::thread t1(f);
-	std::thread t2(f);
+ 	std::thread t1(f);
+ 	std::thread t2(f);
 	t0.join();
-	t1.join();
-	t2.join();
+ 	t1.join();
+ 	t2.join();
 
 #ifdef _WIN32
 	system("pause");

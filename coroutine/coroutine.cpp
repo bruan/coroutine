@@ -92,4 +92,13 @@ namespace coroutine
 		getCoroutineMgr()->init(nStackSize);
 	}
 
+	uint32_t getCoroutineCount()
+	{
+		return getCoroutineMgr()->getCoroutineCount();
+	}
+
+	uint64_t getTotalStackSize()
+	{
+		return getCoroutineMgr()->getTotalStackSize();
+	}
 }

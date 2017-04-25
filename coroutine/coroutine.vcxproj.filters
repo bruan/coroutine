@@ -11,7 +11,4 @@
     <ClInclude Include="coroutine_impl.h" />
     <ClInclude Include="coroutine_mgr.h" />
   </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="context_win.S" />
-  </ItemGroup>
 </Project>

@@ -15,33 +15,39 @@ namespace coroutine
 
 		bool			init(uint32_t nStackSize);
 
-		char*			getMainStack() const;
-
 		CCoroutineImpl*	createCoroutine(uint32_t nStackSize, const std::function<void(uint64_t)>& callback);
 		CCoroutineImpl*	getCoroutine(uint64_t nID) const;
 		void			addRecycleCoroutine(CCoroutineImpl* pCoroutineImpl);
+		uint32_t		getCoroutineCount() const;
+		uint64_t		getTotalStackSize() const;
 
 		void			setCurrentCoroutine(CCoroutineImpl* pCoroutineImpl);
 		CCoroutineImpl*	getCurrentCoroutine() const;
 
-		context*		getMainContext() const;
+		void*			getMainContext() const;
 
 		static uint32_t	getPageSize();
+
+#ifndef _WIN32
+		char*			getMainStack() const;
+
 		static char*	allocStack(uint32_t& nStackSize, uint32_t& nValgrindID);
 		static void		freeStack(char* pStack, uint32_t nStackSize, uint32_t nValgrindID);
+#endif
 
 	private:
 		void			recycle();
 		
 	private:
+		int64_t									m_nTotalStackSize;
 		uint64_t								m_nNextCoroutineID;
 		std::map<uint64_t, CCoroutineImpl*>		m_mapCoroutine;
 		std::list<CCoroutineImpl*>				m_listRecycleCoroutine;
 		CCoroutineImpl*							m_pCurrentCoroutine;
-		context*								m_pMainContext;
+		void*									m_pMainContext;
+#ifndef _WIN32
 		char*									m_pMainStack;
 		uint32_t								m_nMainStackSize;
-#ifndef _WIN32
 		int32_t									m_nValgrindID;
 #endif
 	};

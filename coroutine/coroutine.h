@@ -52,4 +52,12 @@ namespace coroutine
 	@brief: 获取当前执行协程的ID
 	*/
 	uint64_t	getCurrentID();
+	/**
+	@brief: 获取协程数量
+	*/
+	uint32_t	getCoroutineCount();
+	/**
+	@brief: 获取总的独立栈大小
+	*/
+	uint64_t	getTotalStackSize();
 };
